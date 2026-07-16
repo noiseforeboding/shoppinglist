@@ -71,6 +71,12 @@
       gap: 10px;
     }
 
+    .form-row-bottom {
+      display: flex;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
     input[type="text"], select {
       padding: 12px;
       border: 1px solid var(--border-color);
@@ -84,7 +90,7 @@
     }
 
     select {
-      width: 120px;
+      flex: 1;
     }
 
     button {
@@ -188,6 +194,14 @@
       border-radius: 4px;
     }
 
+    .btn-move {
+      background: #28a745;
+      color: white;
+      font-size: 1rem;
+      font-weight: bold;
+      padding: 6px 12px;
+    }
+
     .btn-delete {
       background: var(--danger);
       color: white;
@@ -271,13 +285,15 @@
     <div class="input-group">
       <div class="form-row">
         <input type="text" id="item-input" placeholder="Add an item (e.g. Yogurt)" autocomplete="off" disabled>
+        <button id="add-btn" disabled>+</button>
+      </div>
+      <div class="form-row-bottom">
         <select id="section-select" disabled>
           <option value="Next Shop">Next Shop</option>
           <option value="Any Upcoming Shop">Upcoming Shop</option>
           <option value="Do Not Buy">Do Not Buy</option>
           <option value="Check Before Submitting">Check First</option>
         </select>
-        <button id="add-btn" disabled>+</button>
       </div>
       <!-- Suggestions dropdown -->
       <div id="suggestions" class="suggestions-box"></div>
@@ -285,17 +301,23 @@
 
     <!-- List Sections -->
     <div class="list-section">
-      <div class="section-title">Next Shop <span class="section-count" id="count-next">0</span></div>
+      <div class="section-title collapsible" id="next-toggle" onclick="toggleSection('next')">
+        <span><span class="collapse-arrow" id="next-arrow">▼</span>Next Shop</span>
+        <span class="section-count" id="count-next">0</span>
+      </div>
       <ul id="list-next" class="list-group"></ul>
     </div>
 
     <div class="list-section">
-      <div class="section-title">Upcoming Shop <span class="section-count" id="count-upcoming">0</span></div>
-      <ul id="list-upcoming" class="list-group"></ul>
+      <div class="section-title collapsible" id="upcoming-toggle" onclick="toggleSection('upcoming')">
+        <span><span class="collapse-arrow" id="upcoming-arrow">▶</span>Upcoming Shop</span>
+        <span class="section-count" id="count-upcoming">0</span>
+      </div>
+      <ul id="list-upcoming" class="list-group" style="display:none;"></ul>
     </div>
 
     <div class="list-section" id="check-section">
-      <div class="section-title collapsible" id="check-toggle" onclick="toggleCheckSection()">
+      <div class="section-title collapsible" id="check-toggle" onclick="toggleSection('check')">
         <span><span class="collapse-arrow" id="check-arrow">▶</span>Check Before Submitting</span>
         <span class="section-count" id="count-check">0</span>
       </div>
@@ -303,8 +325,11 @@
     </div>
 
     <div class="list-section">
-      <div class="section-title">Do Not Buy <span class="section-count" id="count-donot">0</span></div>
-      <ul id="list-donot" class="list-group"></ul>
+      <div class="section-title collapsible" id="donot-toggle" onclick="toggleSection('donot')">
+        <span><span class="collapse-arrow" id="donot-arrow">▶</span>Do Not Buy</span>
+        <span class="section-count" id="count-donot">0</span>
+      </div>
+      <ul id="list-donot" class="list-group" style="display:none;"></ul>
     </div>
   </div>
 
@@ -335,13 +360,13 @@
 
     initTheme();
 
-    // --- COLLAPSIBLE CHECK SECTION ---
-    let checkSectionOpen = false;
+    // --- COLLAPSIBLE SECTIONS ---
+    const sectionOpen = { next: true, upcoming: false, check: false, donot: false };
 
-    function toggleCheckSection() {
-      checkSectionOpen = !checkSectionOpen;
-      document.getElementById('list-check').style.display = checkSectionOpen ? '' : 'none';
-      document.getElementById('check-arrow').textContent = checkSectionOpen ? '▼' : '▶';
+    function toggleSection(key) {
+      sectionOpen[key] = !sectionOpen[key];
+      document.getElementById('list-' + key).style.display = sectionOpen[key] ? '' : 'none';
+      document.getElementById(key + '-arrow').textContent = sectionOpen[key] ? '▼' : '▶';
     }
 
     // --- EMOJI MAP ---
@@ -433,6 +458,8 @@
       { emoji: '🧆', keywords: ['hummus', 'dip', 'tzatziki', 'guacamole', 'falafel'] },
     ];
 
+    const FALLBACK_EMOJIS = ['🛍️','🧺','📦','🏪','🛒','🪣','🎁','🪤','🔖','📋','🗃️','🧃','🫙','🥡','🍱','🛵','🧇','🫓','🥙','🌮','🍜','🥘','🍲','🧋','🥤','🍶','🫖','🍵','🧊','🍡'];
+
     function getEmojiForItem(name) {
       const lower = name.toLowerCase();
       for (const entry of EMOJI_MAP) {
@@ -440,14 +467,17 @@
           return entry.emoji;
         }
       }
-      return '';
+      // Deterministic random fallback based on name so same item always gets same emoji
+      let hash = 0;
+      for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+      return FALLBACK_EMOJIS[hash % FALLBACK_EMOJIS.length];
     }
 
     function enrichItemName(name) {
       // Skip if already starts with an emoji
       if (/^[\p{Emoji_Presentation}\p{Extended_Pictographic}]/u.test(name)) return name;
       const emoji = getEmojiForItem(name);
-      return emoji ? `${emoji} ${name}` : name;
+      return `${emoji} ${name}`;
     }
 
     let localItems = [];
@@ -535,7 +565,7 @@
           li.innerHTML = `
             <span>${item.itemName}</span>
             <div class="item-actions">
-              ${secKey !== "Next Shop" ? `<button class="btn-action" onclick="moveItem('${item.id}', 'Next Shop')">🛒 Next Shop</button>` : ''}
+              ${(secKey !== "Next Shop" && secKey !== "Do Not Buy") ? `<button class="btn-action btn-move" title="Add to Next Shop" onclick="moveItem('${item.id}', 'Next Shop')">+</button>` : ''}
               <button class="btn-action btn-delete" onclick="deleteItem('${item.id}')">✕</button>
             </div>
           `;
