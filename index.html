@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Family Shopping List</title>
+  <style>
+    :root {
+      --bg-color: #f4f6f8;
+      --card-bg: #ffffff;
+      --text-main: #333333;
+      --text-muted: #666666;
+      --accent: #4a90e2;
+      --accent-hover: #357abd;
+      --border-color: #e1e4e8;
+      --danger: #d9534f;
+      --warning: #f0ad4e;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      padding: 15px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .app-container {
+      width: 100%;
+      max-width: 500px;
+      background: var(--card-bg);
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      padding: 20px;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 20px;
+      text-align: center;
+      color: var(--accent);
+    }
+
+    /* Form and Suggestions styling */
+    .input-group {
+      position: relative;
+      margin-bottom: 25px;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    input[type="text"], select {
+      padding: 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 1rem;
+      outline: none;
+    }
+
+    input[type="text"] {
+      flex: 1;
+    }
+
+    select {
+      width: 120px;
+    }
+
+    button {
+      padding: 12px 20px;
+      background-color: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background-color: var(--accent-hover);
+    }
+
+    /* Auto-suggest overlay */
+    .suggestions-box {
+      position: absolute;
+      top: 105%;
+      left: 0;
+      right: 0;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      z-index: 10;
+      display: none;
+    }
+
+    .suggestion-item {
+      padding: 12px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .suggestion-item:last-child {
+      border-bottom: none;
+    }
+
+    .suggestion-item:hover {
+      background-color: #f0f4f8;
+    }
+
+    .suggestion-label {
+      font-size: 0.75rem;
+      color: var(--accent);
+      text-transform: uppercase;
+      font-weight: bold;
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    /* Lists sections */
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: bold;
+      margin: 20px 0 10px 0;
+      padding-bottom: 5px;
+      border-bottom: 2px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .section-count {
+      background: var(--border-color);
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.8rem;
+    }
+
+    .list-group {
+      list-style: none;
+      min-height: 20px;
+    }
+
+    .list-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      background: var(--bg-color);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      font-size: 0.95rem;
+    }
+
+    .item-actions {
+      display: flex;
+      gap: 5px;
+    }
+
+    .btn-action {
+      padding: 6px 10px;
+      font-size: 0.8rem;
+      background: #e1e4e8;
+      color: #333;
+      border-radius: 4px;
+    }
+
+    .btn-delete {
+      background: var(--danger);
+      color: white;
+    }
+
+    .loading-status {
+      text-align: center;
+      color: var(--text-muted);
+      font-style: italic;
+      margin-bottom: 15px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <h1>Family Shopping List</h1>
+    <div id="loading" class="loading-status">Connecting to Google Sheets...</div>
+
+    <!-- Add Item Form -->
+    <div class="input-group">
+      <div class="form-row">
+        <input type="text" id="item-input" placeholder="Add an item (e.g. Yogurt)" autocomplete="off" disabled>
+        <select id="section-select" disabled>
+          <option value="Next Shop">Next Shop</option>
+          <option value="Any Upcoming Shop">Upcoming</option>
+          <option value="Do Not Buy">Do Not Buy</option>
+          <option value="Check Before Submitting">Check First</option>
+        </select>
+        <button id="add-btn" disabled>+</button>
+      </div>
+      <!-- Suggestions dropdown -->
+      <div id="suggestions" class="suggestions-box"></div>
+    </div>
+
+    <!-- List Sections -->
+    <div class="list-section">
+      <div class="section-title">Next Shop <span class="section-count" id="count-next">0</span></div>
+      <ul id="list-next" class="list-group"></ul>
+    </div>
+
+    <div class="list-section">
+      <div class="section-title">Any Upcoming Shop <span class="section-count" id="count-upcoming">0</span></div>
+      <ul id="list-upcoming" class="list-group"></ul>
+    </div>
+
+    <div class="list-section">
+      <div class="section-title">Check Before Submitting <span class="section-count" id="count-check">0</span></div>
+      <ul id="list-check" class="list-group"></ul>
+    </div>
+
+    <div class="list-section">
+      <div class="section-title">Do Not Buy <span class="section-count" id="count-donot">0</span></div>
+      <ul id="list-donot" class="list-group"></ul>
+    </div>
+  </div>
+
+  <script>
+    // --- CONFIGURATION ---
+    const API_URL = "YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL"; // Paste your deployment URL here
+    const API_KEY = "MyFamilyShoppingListKey2026"; // Must match the security key in your Code.gs
+
+    let localItems = [];
+    let localPreferences = {};
+
+    // DOM Elements
+    const itemInput = document.getElementById('item-input');
+    const sectionSelect = document.getElementById('section-select');
+    const addBtn = document.getElementById('add-btn');
+    const suggestionsBox = document.getElementById('suggestions');
+    const loadingEl = document.getElementById('loading');
+
+    // Fetch master list and brand preferences on load
+    async function loadData() {
+      showLoading("Syncing list...");
+      try {
+        const response = await fetch(`${API_URL}?key=${API_KEY}`);
+        const data = await response.json();
+        
+        if (data.status === "success") {
+          localItems = data.items || [];
+          localPreferences = data.preferences || {};
+          renderLists();
+          enableUI();
+          hideLoading();
+        } else {
+          showLoading("Error loading: " + data.error);
+        }
+      } catch (err) {
+        showLoading("Connection Failed. Check API URL.");
+        console.error(err);
+      }
+    }
+
+    // Enable inputs once synced
+    function enableUI() {
+      itemInput.disabled = false;
+      sectionSelect.disabled = false;
+      addBtn.disabled = false;
+    }
+
+    function showLoading(msg) {
+      loadingEl.style.display = "block";
+      loadingEl.innerText = msg;
+    }
+
+    function hideLoading() {
+      loadingEl.style.display = "none";
+    }
+
+    // Render categorized UI elements
+    function renderLists() {
+      const sections = {
+        "Next Shop": { el: document.getElementById('list-next'), count: document.getElementById('count-next'), items: [] },
+        "Any Upcoming Shop": { el: document.getElementById('list-upcoming'), count: document.getElementById('count-upcoming'), items: [] },
+        "Check Before Submitting": { el: document.getElementById('list-check'), count: document.getElementById('count-check'), items: [] },
+        "Do Not Buy": { el: document.getElementById('list-donot'), count: document.getElementById('count-donot'), items: [] }
+      };
+
+      // Clear groups
+      Object.values(sections).forEach(sec => {
+        sec.el.innerHTML = "";
+      });
+
+      // Filter local state
+      localItems.forEach(item => {
+        if (sections[item.section]) {
+          sections[item.section].items.push(item);
+        }
+      });
+
+      // Populate elements
+      Object.keys(sections).forEach(secKey => {
+        const section = sections[secKey];
+        section.count.innerText = section.items.length;
+
+        if (section.items.length === 0) {
+          section.el.innerHTML = `<li class="list-item" style="background:transparent; color:#aaa; justify-content:center;">Empty</li>`;
+          return;
+        }
+
+        section.items.forEach(item => {
+          const li = document.createElement('li');
+          li.className = "list-item";
+          li.innerHTML = `
+            <span>${item.itemName}</span>
+            <div class="item-actions">
+              ${secKey !== "Next Shop" ? `<button class="btn-action" onclick="moveItem('${item.id}', 'Next Shop')">🛒 Shop</button>` : ''}
+              ${secKey !== "Check Before Submitting" ? `<button class="btn-action" onclick="moveItem('${item.id}', 'Check Before Submitting')">🔍 Check</button>` : ''}
+              <button class="btn-action btn-delete" onclick="deleteItem('${item.id}')">✕</button>
+            </div>
+          `;
+          section.el.appendChild(li);
+        });
+      });
+    }
+
+    // Add Item Event
+    addBtn.addEventListener('click', addItemSubmit);
+    itemInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') addItemSubmit();
+    });
+
+    async function addItemSubmit() {
+      const itemName = itemInput.value.trim();
+      const section = sectionSelect.value;
+      if (!itemName) return;
+
+      itemInput.value = "";
+      suggestionsBox.style.display = "none";
+      showLoading("Adding to Sheet...");
+
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          body: JSON.stringify({
+            key: API_KEY,
+            action: 'add',
+            itemName,
+            section
+          })
+        });
+        const result = await response.json();
+        if (result.status === "success") {
+          // Update client state locally so we don't have to refetch everything
+          localItems.push({
+            id: result.itemId,
+            itemName,
+            section,
+            timestamp: new Date().toISOString()
+          });
+          renderLists();
+          hideLoading();
+        }
+      } catch (err) {
+        showLoading("Failed to add item.");
+      }
+    }
+
+    // Move Item to another category
+    async function moveItem(id, targetSection) {
+      showLoading("Updating...");
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          body: JSON.stringify({
+            key: API_KEY,
+            action: 'move',
+            id,
+            section: targetSection
+          })
+        });
+        const result = await response.json();
+        if (result.status === "success") {
+          const item = localItems.find(i => i.id === id);
+          if (item) item.section = targetSection;
+          renderLists();
+          hideLoading();
+        }
+      } catch (err) {
+        showLoading("Failed to move item.");
+      }
+    }
+
+    // Delete Item
+    async function deleteItem(id) {
+      showLoading("Deleting...");
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          body: JSON.stringify({
+            key: API_KEY,
+            action: 'delete',
+            id
+          })
+        });
+        const result = await response.json();
+        if (result.status === "success") {
+          localItems = localItems.filter(i => i.id !== id);
+          renderLists();
+          hideLoading();
+        }
+      } catch (err) {
+        showLoading("Failed to delete item.");
+      }
+    }
+
+    // Auto-suggest implementation as you type
+    itemInput.addEventListener('input', (e) => {
+      const text = e.target.value.trim().toLowerCase();
+      if (!text) {
+        suggestionsBox.style.display = "none";
+        return;
+      }
+
+      // Check if we have a matching generic preference key
+      const matchKey = Object.keys(localPreferences).find(key => key.includes(text) || text.includes(key));
+      
+      if (matchKey) {
+        const preferredBrand = localPreferences[matchKey];
+        suggestionsBox.innerHTML = `
+          <div class="suggestion-item" onclick="applySuggestion('${preferredBrand}')">
+            <span class="suggestion-label">Preferred Brand Suggestion:</span>
+            <strong>${preferredBrand}</strong>
+          </div>
+        `;
+        suggestionsBox.style.display = "block";
+      } else {
+        suggestionsBox.style.display = "none";
+      }
+    });
+
+    function applySuggestion(brandText) {
+      itemInput.value = brandText;
+      suggestionsBox.style.display = "none";
+      itemInput.focus();
+    }
+
+    // Initialize application
+    loadData();
+  </script>
+</body>
+</html>
