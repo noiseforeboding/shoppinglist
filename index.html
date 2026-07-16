@@ -194,6 +194,14 @@
       border-radius: 4px;
     }
 
+    .btn-move {
+      background: #28a745;
+      color: white;
+      font-size: 1rem;
+      font-weight: bold;
+      padding: 6px 12px;
+    }
+
     .btn-delete {
       background: var(--danger);
       color: white;
@@ -450,6 +458,8 @@
       { emoji: '🧆', keywords: ['hummus', 'dip', 'tzatziki', 'guacamole', 'falafel'] },
     ];
 
+    const FALLBACK_EMOJIS = ['🛍️','🧺','📦','🏪','🛒','🪣','🎁','🪤','🔖','📋','🗃️','🧃','🫙','🥡','🍱','🛵','🧇','🫓','🥙','🌮','🍜','🥘','🍲','🧋','🥤','🍶','🫖','🍵','🧊','🍡'];
+
     function getEmojiForItem(name) {
       const lower = name.toLowerCase();
       for (const entry of EMOJI_MAP) {
@@ -457,14 +467,17 @@
           return entry.emoji;
         }
       }
-      return '';
+      // Deterministic random fallback based on name so same item always gets same emoji
+      let hash = 0;
+      for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+      return FALLBACK_EMOJIS[hash % FALLBACK_EMOJIS.length];
     }
 
     function enrichItemName(name) {
       // Skip if already starts with an emoji
       if (/^[\p{Emoji_Presentation}\p{Extended_Pictographic}]/u.test(name)) return name;
       const emoji = getEmojiForItem(name);
-      return emoji ? `${emoji} ${name}` : name;
+      return `${emoji} ${name}`;
     }
 
     let localItems = [];
@@ -552,7 +565,7 @@
           li.innerHTML = `
             <span>${item.itemName}</span>
             <div class="item-actions">
-              ${(secKey !== "Next Shop" && secKey !== "Do Not Buy") ? `<button class="btn-action" onclick="moveItem('${item.id}', 'Next Shop')">🛒 Next Shop</button>` : ''}
+              ${(secKey !== "Next Shop" && secKey !== "Do Not Buy") ? `<button class="btn-action btn-move" title="Add to Next Shop" onclick="moveItem('${item.id}', 'Next Shop')">+</button>` : ''}
               <button class="btn-action btn-delete" onclick="deleteItem('${item.id}')">✕</button>
             </div>
           `;
