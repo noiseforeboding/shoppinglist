@@ -270,6 +270,33 @@
       background: var(--border-color);
       color: var(--text-main);
     }
+
+    .btn-clear-shop {
+      padding: 3px 10px;
+      font-size: 0.75rem;
+      font-weight: bold;
+      background: var(--danger);
+      color: white;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      line-height: 1.4;
+    }
+
+    .btn-clear-shop:hover {
+      opacity: 0.85;
+      background: var(--danger);
+    }
+
+    .edit-input {
+      flex: 1;
+      padding: 4px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border-color);
+      background: var(--card-bg);
+      color: var(--text-main);
+      font-size: 0.95rem;
+    }
   </style>
 </head>
 <body>
@@ -303,7 +330,10 @@
     <div class="list-section">
       <div class="section-title collapsible" id="next-toggle" onclick="toggleSection('next')">
         <span><span class="collapse-arrow" id="next-arrow">▼</span>Next Shop</span>
-        <span class="section-count" id="count-next">0</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button class="btn-clear-shop" onclick="event.stopPropagation(); clearNextShop()" title="Clear all items from Next Shop">Clear</button>
+          <span class="section-count" id="count-next">0</span>
+        </div>
       </div>
       <ul id="list-next" class="list-group"></ul>
     </div>
@@ -562,10 +592,21 @@
         section.items.forEach(item => {
           const li = document.createElement('li');
           li.className = "list-item";
+          li.dataset.itemId = item.id;
+
+          // "+" button: for Check Before Submitting, add to Next Shop without removing; for others, move
+          let moveBtn = '';
+          if (secKey === "Any Upcoming Shop") {
+            moveBtn = `<button class="btn-action btn-move" title="Move to Next Shop" onclick="moveItem('${item.id}', 'Next Shop')">+</button>`;
+          } else if (secKey === "Check Before Submitting") {
+            moveBtn = `<button class="btn-action btn-move" title="Add to Next Shop" onclick="addFromCheckList('${item.id}', '${item.itemName.replace(/'/g, "\\'")}')">+</button>`;
+          }
+
           li.innerHTML = `
-            <span>${item.itemName}</span>
+            <span class="item-name">${item.itemName}</span>
             <div class="item-actions">
-              ${(secKey !== "Next Shop" && secKey !== "Do Not Buy") ? `<button class="btn-action btn-move" title="Add to Next Shop" onclick="moveItem('${item.id}', 'Next Shop')">+</button>` : ''}
+              ${moveBtn}
+              <button class="btn-action" title="Edit item" onclick="startEditItem('${item.id}')">✏️</button>
               <button class="btn-action btn-delete" onclick="deleteItem('${item.id}')">✕</button>
             </div>
           `;
@@ -695,6 +736,122 @@
       itemInput.value = brandText;
       suggestionsBox.style.display = "none";
       itemInput.focus();
+    }
+
+    // Clear all items from Next Shop
+    async function clearNextShop() {
+      const nextItems = localItems.filter(i => i.section === "Next Shop");
+      if (nextItems.length === 0) return;
+      if (!confirm(`Clear all ${nextItems.length} item(s) from Next Shop?`)) return;
+
+      showLoading("Clearing Next Shop...");
+      try {
+        for (const item of nextItems) {
+          await fetch(API_URL, {
+            method: 'POST',
+            body: JSON.stringify({ key: API_KEY, action: 'delete', id: item.id })
+          });
+        }
+        localItems = localItems.filter(i => i.section !== "Next Shop");
+        renderLists();
+        hideLoading();
+      } catch (err) {
+        showLoading("Failed to clear list.");
+      }
+    }
+
+    // Add item from Check Before Submitting to Next Shop (item stays on check list)
+    async function addFromCheckList(id, itemName) {
+      showLoading("Adding to Next Shop...");
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          body: JSON.stringify({ key: API_KEY, action: 'add', itemName, section: 'Next Shop' })
+        });
+        const result = await response.json();
+        if (result.status === "success") {
+          localItems.push({ id: result.itemId, itemName, section: 'Next Shop', timestamp: new Date().toISOString() });
+          renderLists();
+          hideLoading();
+        }
+      } catch (err) {
+        showLoading("Failed to add item.");
+      }
+    }
+
+    // Start inline editing of an item
+    function startEditItem(id) {
+      const item = localItems.find(i => i.id === id);
+      if (!item) return;
+
+      const li = document.querySelector(`[data-item-id="${id}"]`);
+      if (!li) return;
+
+      const nameSpan = li.querySelector('.item-name');
+      const actionsDiv = li.querySelector('.item-actions');
+
+      // Strip leading emoji for editing
+      const strippedName = item.itemName.replace(/^[\p{Emoji_Presentation}\p{Extended_Pictographic}]\s*/u, '');
+      const escapedOriginal = item.itemName.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
+      nameSpan.innerHTML = `<input type="text" class="edit-input" value="${strippedName.replace(/"/g, '&quot;')}">`;
+      actionsDiv.innerHTML = `
+        <button class="btn-action" style="background:#28a745;color:white;" title="Save" onclick="saveEditItem('${id}')">✓</button>
+        <button class="btn-action" title="Cancel" onclick="cancelEditItem()">✗</button>
+      `;
+
+      const input = nameSpan.querySelector('input');
+      input.focus();
+      input.select();
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') saveEditItem(id);
+        if (e.key === 'Escape') cancelEditItem();
+      });
+    }
+
+    // Save inline edit by deleting old item and adding updated one
+    async function saveEditItem(id) {
+      const item = localItems.find(i => i.id === id);
+      if (!item) return;
+
+      const li = document.querySelector(`[data-item-id="${id}"]`);
+      if (!li) return;
+
+      const input = li.querySelector('.edit-input');
+      const newRawName = input ? input.value.trim() : '';
+      if (!newRawName) return;
+
+      const newName = enrichItemName(newRawName);
+      const section = item.section;
+
+      showLoading("Saving...");
+      try {
+        const delResponse = await fetch(API_URL, {
+          method: 'POST',
+          body: JSON.stringify({ key: API_KEY, action: 'delete', id })
+        });
+        const delResult = await delResponse.json();
+        if (delResult.status !== "success") throw new Error("Delete failed");
+
+        const addResponse = await fetch(API_URL, {
+          method: 'POST',
+          body: JSON.stringify({ key: API_KEY, action: 'add', itemName: newName, section })
+        });
+        const addResult = await addResponse.json();
+        if (addResult.status === "success") {
+          localItems = localItems.filter(i => i.id !== id);
+          localItems.push({ id: addResult.itemId, itemName: newName, section, timestamp: new Date().toISOString() });
+          renderLists();
+          hideLoading();
+        }
+      } catch (err) {
+        showLoading("Failed to save edit.");
+      }
+    }
+
+    // Cancel edit by re-rendering
+    function cancelEditItem() {
+      renderLists();
     }
 
     // Initialize application
