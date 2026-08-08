@@ -320,6 +320,7 @@
           <option value="Any Upcoming Shop">Upcoming Shop</option>
           <option value="Do Not Buy">Do Not Buy</option>
           <option value="Check Before Submitting">Check First</option>
+          <option value="In the basement">In the basement</option>
         </select>
       </div>
       <!-- Suggestions dropdown -->
@@ -361,6 +362,14 @@
       </div>
       <ul id="list-donot" class="list-group" style="display:none;"></ul>
     </div>
+
+    <div class="list-section">
+      <div class="section-title collapsible" id="basement-toggle" onclick="toggleSection('basement')">
+        <span><span class="collapse-arrow" id="basement-arrow">▶</span>In the basement</span>
+        <span class="section-count" id="count-basement">0</span>
+      </div>
+      <ul id="list-basement" class="list-group" style="display:none;"></ul>
+    </div>
   </div>
 
   <script>
@@ -391,7 +400,7 @@
     initTheme();
 
     // --- COLLAPSIBLE SECTIONS ---
-    const sectionOpen = { next: true, upcoming: false, check: false, donot: false };
+    const sectionOpen = { next: true, upcoming: false, check: false, donot: false, basement: false };
 
     function toggleSection(key) {
       sectionOpen[key] = !sectionOpen[key];
@@ -564,7 +573,8 @@
         "Next Shop": { el: document.getElementById('list-next'), count: document.getElementById('count-next'), items: [] },
         "Any Upcoming Shop": { el: document.getElementById('list-upcoming'), count: document.getElementById('count-upcoming'), items: [] },
         "Check Before Submitting": { el: document.getElementById('list-check'), count: document.getElementById('count-check'), items: [] },
-        "Do Not Buy": { el: document.getElementById('list-donot'), count: document.getElementById('count-donot'), items: [] }
+        "Do Not Buy": { el: document.getElementById('list-donot'), count: document.getElementById('count-donot'), items: [] },
+        "In the basement": { el: document.getElementById('list-basement'), count: document.getElementById('count-basement'), items: [] }
       };
 
       // Clear groups
